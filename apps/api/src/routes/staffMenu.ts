@@ -47,6 +47,7 @@ export function staffMenuRouter(): Router {
         description: i.description,
         priceCents: i.priceCents,
         available: i.available,
+        dietType: (i as any).dietType || "veg",
       })),
     );
   });

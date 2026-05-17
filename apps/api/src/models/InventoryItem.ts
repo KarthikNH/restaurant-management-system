@@ -7,6 +7,12 @@ const inventoryItemSchema = new mongoose.Schema(
     unit: { type: String, required: true },
     quantity: { type: Number, default: 0, required: true },
     minimumThreshold: { type: Number, default: 10, required: true },
+    status: {
+      type: String,
+      enum: ["healthy", "spoiled"],
+      default: "healthy",
+      required: true,
+    },
   },
   { timestamps: true },
 );

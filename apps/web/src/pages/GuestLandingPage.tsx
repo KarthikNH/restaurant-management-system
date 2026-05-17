@@ -50,7 +50,7 @@ export function GuestLandingPage() {
           src={logo}
           alt="Iris Cafe Logo"
           style={{
-            height: "70px",
+            height: "92px",
             objectFit: "contain",
             marginBottom: "12px",
             borderRadius: "14px",

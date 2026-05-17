@@ -1,7 +1,25 @@
 import { Link, Navigate } from "react-router-dom";
 
+function getStaffRole(): string | null {
+  const token = localStorage.getItem("staff_token");
+  if (!token) return null;
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    const parsed = JSON.parse(jsonPayload);
+    return parsed.role || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 export function StaffHomePage() {
   const token = localStorage.getItem("staff_token");
+  const userRole = getStaffRole();
+
   if (!token) return <Navigate to="/staff/login" replace />;
 
   return (
@@ -35,6 +53,14 @@ export function StaffHomePage() {
           <div className="home-nav-label">Inventory Management</div>
           <div className="home-nav-desc">Track stock levels, set low stock thresholds, and manage menu ingredients.</div>
         </Link>
+
+        {userRole === "admin" && (
+          <Link to="/staff/employees" className="home-nav-card">
+            <div className="home-nav-icon">👤</div>
+            <div className="home-nav-label">Employee Management</div>
+            <div className="home-nav-desc">Manage employee profiles, track attendance, calculate payroll, and schedule shifts.</div>
+          </Link>
+        )}
       </div>
     </div>
   );

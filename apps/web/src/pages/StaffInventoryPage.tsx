@@ -9,6 +9,7 @@ type InventoryItem = {
   unit: string;
   quantity: number;
   minimumThreshold: number;
+  status: "healthy" | "spoiled";
 };
 
 const CATEGORIES = [
@@ -34,11 +35,13 @@ export function StaffInventoryPage() {
   const [unit, setUnit] = useState("Kg");
   const [quantity, setQuantity] = useState(10);
   const [minThreshold, setMinThreshold] = useState(5);
+  const [status, setStatus] = useState<"healthy" | "spoiled">("healthy");
   
   // Editing state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editQuantity, setEditQuantity] = useState<number>(0);
   const [editMinThreshold, setEditMinThreshold] = useState<number>(0);
+  const [editStatus, setEditStatus] = useState<"healthy" | "spoiled">("healthy");
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -65,18 +68,24 @@ export function StaffInventoryPage() {
   const stats = useMemo(() => {
     let lowStockCount = 0;
     let outOfStockCount = 0;
+    let spoiledCount = 0;
     for (const item of items) {
       if (item.quantity === 0) {
         outOfStockCount++;
-      } else if (item.quantity <= item.minimumThreshold) {
-        lowStockCount++;
+      } else {
+        if (item.status === "spoiled") {
+          spoiledCount++;
+        }
+        if (item.quantity <= item.minimumThreshold) {
+          lowStockCount++;
+        }
       }
     }
     return {
       total: items.length,
       lowStock: lowStockCount,
       outOfStock: outOfStockCount,
-      okStock: items.length - lowStockCount - outOfStockCount,
+      spoiled: spoiledCount,
     };
   }, [items]);
 
@@ -107,11 +116,13 @@ export function StaffInventoryPage() {
           unit,
           quantity,
           minimumThreshold: minThreshold,
+          status,
         },
       });
       setName("");
       setQuantity(10);
       setMinThreshold(5);
+      setStatus("healthy");
       setShowAddForm(false);
       setSuccess("Inventory item added successfully!");
       await load();
@@ -146,6 +157,7 @@ export function StaffInventoryPage() {
     setEditingId(item.id);
     setEditQuantity(item.quantity);
     setEditMinThreshold(item.minimumThreshold);
+    setEditStatus(item.status || "healthy");
   }
 
   async function handleSaveEdit(id: string) {
@@ -157,6 +169,7 @@ export function StaffInventoryPage() {
         json: {
           quantity: editQuantity,
           minimumThreshold: editMinThreshold,
+          status: editStatus,
         },
       });
       setEditingId(null);
@@ -290,6 +303,13 @@ export function StaffInventoryPage() {
                 />
               </div>
               <div className="form-group" style={{ minWidth: "120px" }}>
+                <label>Status</label>
+                <select value={status} onChange={(e) => setStatus(e.target.value as "healthy" | "spoiled")}>
+                  <option value="healthy">🥦 Healthy</option>
+                  <option value="spoiled">⚠️ Spoiled</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ minWidth: "120px" }}>
                 <button type="submit" className="primary" style={{ width: "100%", height: "42px" }}>
                   Save Item
                 </button>
@@ -325,11 +345,14 @@ export function StaffInventoryPage() {
           </div>
           <div className="stat-tile-label">Low Stock Alerts</div>
         </div>
-        <div className="stat-tile">
-          <div className="stat-tile-value" style={{ color: "var(--green)" }}>
-            {stats.okStock}
+        <div className="stat-tile" style={{ borderColor: stats.spoiled > 0 ? "rgba(239, 68, 68, 0.4)" : undefined }}>
+          <div
+            className="stat-tile-value"
+            style={{ color: stats.spoiled > 0 ? "var(--red)" : "var(--green)" }}
+          >
+            {stats.spoiled}
           </div>
-          <div className="stat-tile-label">Healthy Stock</div>
+          <div className="stat-tile-label">Spoiled Items</div>
         </div>
       </div>
 
@@ -440,8 +463,8 @@ export function StaffInventoryPage() {
               <tbody>
                 {filteredItems.map((item) => {
                   const isEditing = editingId === item.id;
-                  const isOutOfStock = item.quantity === 0;
-                  const isLowStock = !isOutOfStock && item.quantity <= item.minimumThreshold;
+                  const isOutOfStock = isEditing ? editQuantity === 0 : item.quantity === 0;
+                  const isLowStock = !isOutOfStock && (isEditing ? editQuantity <= editMinThreshold : item.quantity <= item.minimumThreshold);
 
                   // CSS classes for color coding
                   const statusClass = isOutOfStock
@@ -562,29 +585,38 @@ export function StaffInventoryPage() {
 
                       {/* Status */}
                       <td style={{ padding: "12px 20px" }}>
-                        <span
-                          className={statusClass}
-                          style={{
-                            borderColor: isOutOfStock
-                              ? "rgba(239, 68, 68, 0.3)"
-                              : isLowStock
-                              ? "rgba(245, 158, 11, 0.3)"
-                              : "rgba(16, 185, 129, 0.3)",
-                            color: isOutOfStock ? "#fca5a5" : isLowStock ? "#fcd34d" : "#6ee7b7",
-                          }}
-                        >
+                        {isOutOfStock ? (
+                          <span className="muted" style={{ fontSize: "1.1rem", color: "var(--text-3)", display: "inline-block", paddingLeft: "10px" }}>—</span>
+                        ) : isEditing ? (
+                          <select
+                            value={editStatus}
+                            onChange={(e) => setEditStatus(e.target.value as "healthy" | "spoiled")}
+                            style={{ padding: "4px 8px", height: "30px", fontSize: "0.85rem", width: "120px" }}
+                          >
+                            <option value="healthy">🥦 Healthy</option>
+                            <option value="spoiled">⚠️ Spoiled</option>
+                          </select>
+                        ) : (
                           <span
-                            className="badge-dot"
+                            className={item.status === "spoiled" ? "badge occupied" : "badge vacant"}
                             style={{
-                              background: isOutOfStock
-                                ? "var(--red)"
-                                : isLowStock
-                                ? "var(--amber)"
-                                : "var(--green)",
+                              borderColor: item.status === "spoiled"
+                                ? "rgba(239, 68, 68, 0.3)"
+                                : "rgba(16, 185, 129, 0.3)",
+                              color: item.status === "spoiled" ? "#fca5a5" : "#6ee7b7",
                             }}
-                          ></span>
-                          {statusText}
-                        </span>
+                          >
+                            <span
+                              className="badge-dot"
+                              style={{
+                                background: item.status === "spoiled"
+                                  ? "var(--red)"
+                                  : "var(--green)",
+                              }}
+                            ></span>
+                            {item.status === "spoiled" ? "Spoiled" : "Healthy"}
+                          </span>
+                        )}
                       </td>
 
                       {/* Actions */}

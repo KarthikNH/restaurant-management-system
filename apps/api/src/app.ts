@@ -8,6 +8,8 @@ import { staffTablesRouter } from "./routes/staffTables.js";
 import { staffMenuRouter } from "./routes/staffMenu.js";
 import { staffOrdersRouter } from "./routes/staffOrders.js";
 import { staffInventoryRouter } from "./routes/staffInventory.js";
+import { staffReviewsRouter } from "./routes/staffReviews.js";
+import { staffEmployeesRouter } from "./routes/staffEmployees.js";
 import { errorHandler, notFound } from "./middleware/errors.js";
 
 export function createApp() {
@@ -31,6 +33,8 @@ export function createApp() {
   app.use("/api/staff/menu", staffMenuRouter());
   app.use("/api/staff/orders", staffOrdersRouter());
   app.use("/api/staff/inventory", staffInventoryRouter());
+  app.use("/api/staff/reviews", staffReviewsRouter());
+  app.use("/api/staff/employees", staffEmployeesRouter());
 
   app.use(notFound);
   app.use(errorHandler);

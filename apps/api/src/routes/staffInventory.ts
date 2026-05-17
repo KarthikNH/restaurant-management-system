@@ -11,6 +11,7 @@ const itemBody = z.object({
   unit: z.string().min(1),
   quantity: z.number().min(0),
   minimumThreshold: z.number().min(0).optional(),
+  status: z.enum(["healthy", "spoiled"]).optional(),
 });
 
 export function staffInventoryRouter(): Router {
@@ -27,6 +28,7 @@ export function staffInventoryRouter(): Router {
         unit: i.unit,
         quantity: i.quantity,
         minimumThreshold: i.minimumThreshold,
+        status: (i as any).status || "healthy",
       })),
     );
   });
@@ -43,6 +45,7 @@ export function staffInventoryRouter(): Router {
       unit: parsed.data.unit,
       quantity: parsed.data.quantity,
       minimumThreshold: parsed.data.minimumThreshold ?? 10,
+      status: parsed.data.status ?? "healthy",
     });
     res.status(201).json({ id: String(i._id) });
   });
@@ -55,6 +58,7 @@ export function staffInventoryRouter(): Router {
         unit: z.string().min(1).optional(),
         quantity: z.number().min(0).optional(),
         minimumThreshold: z.number().min(0).optional(),
+        status: z.enum(["healthy", "spoiled"]).optional(),
       })
       .safeParse(req.body);
     if (!patch.success) {

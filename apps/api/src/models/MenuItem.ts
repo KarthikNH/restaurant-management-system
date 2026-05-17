@@ -6,6 +6,11 @@ const menuItemSchema = new mongoose.Schema(
     description: { type: String, default: "" },
     priceCents: { type: Number, required: true, min: 0 },
     available: { type: Boolean, default: true },
+    dietType: {
+      type: String,
+      enum: ["veg", "egg", "non-veg"],
+      default: "veg",
+    },
     categoryId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "MenuCategory",

@@ -30,6 +30,15 @@ async function run() {
     { upsert: true },
   );
 
+  const staffEmail = "waiter@demo.local";
+  const staffPassword = "waiter123";
+  const staffHash = await bcrypt.hash(staffPassword, 10);
+  await User.findOneAndUpdate(
+    { email: staffEmail },
+    { email: staffEmail, passwordHash: staffHash, role: "staff" },
+    { upsert: true },
+  );
+
   const tableCount = 10;
   const seatsEach = 4;
   for (let i = 1; i <= tableCount; i++) {
@@ -81,40 +90,40 @@ async function run() {
   await MenuItem.deleteMany({});
   await MenuItem.insertMany([
     // Breakfast Specials
-    { categoryId: breakfast._id, name: "Classic Pancake Stack", description: "Fluffy pancakes with maple syrup & butter", priceCents: 18900, available: true },
-    { categoryId: breakfast._id, name: "Veggie Omelette Toast", description: "Cheese omelette with toasted sourdough", priceCents: 21900, available: true },
-    { categoryId: breakfast._id, name: "Avocado Toast", description: "Avocado spread with cherry tomatoes & herbs", priceCents: 24900, available: true },
-    { categoryId: breakfast._id, name: "English Breakfast", description: "Eggs, sausages, beans & toast", priceCents: 32900, available: true },
+    { categoryId: breakfast._id, name: "Classic Pancake Stack", description: "Fluffy pancakes with maple syrup & butter", priceCents: 18900, available: true, dietType: "egg" },
+    { categoryId: breakfast._id, name: "Veggie Omelette Toast", description: "Cheese omelette with toasted sourdough", priceCents: 21900, available: true, dietType: "egg" },
+    { categoryId: breakfast._id, name: "Avocado Toast", description: "Avocado spread with cherry tomatoes & herbs", priceCents: 24900, available: true, dietType: "veg" },
+    { categoryId: breakfast._id, name: "English Breakfast", description: "Eggs, sausages, beans & toast", priceCents: 32900, available: true, dietType: "non-veg" },
     // Signature Coffee
-    { categoryId: coffee._id, name: "Espresso", description: "Single / Double", priceCents: 9900, available: true },
-    { categoryId: coffee._id, name: "Cappuccino", description: "Regular / Large", priceCents: 14900, available: true },
-    { categoryId: coffee._id, name: "Café Latte", description: "Regular / Large", priceCents: 15900, available: true },
-    { categoryId: coffee._id, name: "Caramel Macchiato", description: "Regular / Large", priceCents: 18900, available: true },
-    { categoryId: coffee._id, name: "Mocha Delight", description: "Regular / Large", priceCents: 19900, available: true },
-    { categoryId: coffee._id, name: "Cold Brew", description: "Glass", priceCents: 21900, available: true },
+    { categoryId: coffee._id, name: "Espresso", description: "Single / Double", priceCents: 9900, available: true, dietType: "veg" },
+    { categoryId: coffee._id, name: "Cappuccino", description: "Regular / Large", priceCents: 14900, available: true, dietType: "veg" },
+    { categoryId: coffee._id, name: "Café Latte", description: "Regular / Large", priceCents: 15900, available: true, dietType: "veg" },
+    { categoryId: coffee._id, name: "Caramel Macchiato", description: "Regular / Large", priceCents: 18900, available: true, dietType: "veg" },
+    { categoryId: coffee._id, name: "Mocha Delight", description: "Regular / Large", priceCents: 19900, available: true, dietType: "veg" },
+    { categoryId: coffee._id, name: "Cold Brew", description: "Glass", priceCents: 21900, available: true, dietType: "veg" },
     // Refreshers & Shakes
-    { categoryId: refreshers._id, name: "Iced Americano", description: "", priceCents: 14900, available: true },
-    { categoryId: refreshers._id, name: "Strawberry Milkshake", description: "", priceCents: 19900, available: true },
-    { categoryId: refreshers._id, name: "Chocolate Oreo Shake", description: "", priceCents: 22900, available: true },
-    { categoryId: refreshers._id, name: "Mango Smoothie", description: "", priceCents: 20900, available: true },
-    { categoryId: refreshers._id, name: "Lemon Mint Cooler", description: "", priceCents: 13900, available: true },
-    { categoryId: refreshers._id, name: "Water", description: "Bottled Water", priceCents: 3000, available: true },
+    { categoryId: refreshers._id, name: "Iced Americano", description: "", priceCents: 14900, available: true, dietType: "veg" },
+    { categoryId: refreshers._id, name: "Strawberry Milkshake", description: "", priceCents: 19900, available: true, dietType: "veg" },
+    { categoryId: refreshers._id, name: "Chocolate Oreo Shake", description: "", priceCents: 22900, available: true, dietType: "veg" },
+    { categoryId: refreshers._id, name: "Mango Smoothie", description: "", priceCents: 20900, available: true, dietType: "veg" },
+    { categoryId: refreshers._id, name: "Lemon Mint Cooler", description: "", priceCents: 13900, available: true, dietType: "veg" },
+    { categoryId: refreshers._id, name: "Water", description: "Bottled Water", priceCents: 3000, available: true, dietType: "veg" },
     // Sandwiches & Burgers
-    { categoryId: sandwiches._id, name: "Grilled Veg Sandwich", description: "Cheese, veggies & pesto", priceCents: 19900, available: true },
-    { categoryId: sandwiches._id, name: "Chicken Club Sandwich", description: "Chicken, lettuce & mayo", priceCents: 27900, available: true },
-    { categoryId: sandwiches._id, name: "Crispy Paneer Burger", description: "Paneer patty with spicy sauce", priceCents: 24900, available: true },
-    { categoryId: sandwiches._id, name: "Classic Chicken Burger", description: "Crispy chicken with fries", priceCents: 31900, available: true },
+    { categoryId: sandwiches._id, name: "Grilled Veg Sandwich", description: "Cheese, veggies & pesto", priceCents: 19900, available: true, dietType: "veg" },
+    { categoryId: sandwiches._id, name: "Chicken Club Sandwich", description: "Chicken, lettuce & mayo", priceCents: 27900, available: true, dietType: "non-veg" },
+    { categoryId: sandwiches._id, name: "Crispy Paneer Burger", description: "Paneer patty with spicy sauce", priceCents: 24900, available: true, dietType: "veg" },
+    { categoryId: sandwiches._id, name: "Classic Chicken Burger", description: "Crispy chicken with fries", priceCents: 31900, available: true, dietType: "non-veg" },
     // Café Favorites
-    { categoryId: cafeFavs._id, name: "White Sauce Pasta", description: "", priceCents: 28900, available: true },
-    { categoryId: cafeFavs._id, name: "Spicy Arrabbiata Pasta", description: "", priceCents: 27900, available: true },
-    { categoryId: cafeFavs._id, name: "Margherita Pizza", description: "", priceCents: 34900, available: true },
-    { categoryId: cafeFavs._id, name: "Farmhouse Pizza", description: "", priceCents: 42900, available: true },
-    { categoryId: cafeFavs._id, name: "Loaded French Fries", description: "", priceCents: 18900, available: true },
+    { categoryId: cafeFavs._id, name: "White Sauce Pasta", description: "", priceCents: 28900, available: true, dietType: "veg" },
+    { categoryId: cafeFavs._id, name: "Spicy Arrabbiata Pasta", description: "", priceCents: 27900, available: true, dietType: "veg" },
+    { categoryId: cafeFavs._id, name: "Margherita Pizza", description: "", priceCents: 34900, available: true, dietType: "veg" },
+    { categoryId: cafeFavs._id, name: "Farmhouse Pizza", description: "", priceCents: 42900, available: true, dietType: "veg" },
+    { categoryId: cafeFavs._id, name: "Loaded French Fries", description: "", priceCents: 18900, available: true, dietType: "veg" },
     // Desserts
-    { categoryId: desserts._id, name: "Chocolate Brownie", description: "", priceCents: 14900, available: true },
-    { categoryId: desserts._id, name: "New York Cheesecake", description: "", priceCents: 22900, available: true },
-    { categoryId: desserts._id, name: "Red Velvet Pastry", description: "", priceCents: 17900, available: true },
-    { categoryId: desserts._id, name: "Tiramisu Cup", description: "", priceCents: 24900, available: true },
+    { categoryId: desserts._id, name: "Chocolate Brownie", description: "", priceCents: 14900, available: true, dietType: "veg" },
+    { categoryId: desserts._id, name: "New York Cheesecake", description: "", priceCents: 22900, available: true, dietType: "veg" },
+    { categoryId: desserts._id, name: "Red Velvet Pastry", description: "", priceCents: 17900, available: true, dietType: "egg" },
+    { categoryId: desserts._id, name: "Tiramisu Cup", description: "", priceCents: 24900, available: true, dietType: "egg" },
   ]);
 
   await InventoryItem.deleteMany({});
@@ -194,7 +203,8 @@ async function run() {
   const t1 = (await RtTable.findOne({ tableSlug: "TABLE01" }).lean()) as TableDoc | null;
 
   console.log("Seed complete.");
-  console.log(`Staff: ${email} / ${password}`);
+  console.log(`Manager Admin: ${email} / ${password}`);
+  console.log(`Normal Staff/Waiter: ${staffEmail} / ${staffPassword}`);
   console.log(`Tables: ${tableCount} × ${seatsEach} seats (slugs TABLE01–TABLE10)`);
   console.log(`Example guest URL slug: ${t1?.tableSlug ?? "TABLE01"}`);
   await mongoose.disconnect();

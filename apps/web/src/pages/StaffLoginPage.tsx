@@ -4,8 +4,8 @@ import { apiJson } from "../api";
 
 export function StaffLoginPage() {
   const nav = useNavigate();
-  const [email, setEmail] = useState("admin@demo.local");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -14,11 +14,12 @@ export function StaffLoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await apiJson<{ token: string }>("/api/staff/auth/login", {
+      const res = await apiJson<{ token: string; user: { role: string } }>("/api/staff/auth/login", {
         method: "POST",
         json: { email, password },
       });
       localStorage.setItem("staff_token", res.token);
+      localStorage.setItem("staff_role", res.user.role);
       nav("/staff");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");

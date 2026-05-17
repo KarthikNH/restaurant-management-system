@@ -20,6 +20,7 @@ type MenuResponse = {
     name: string;
     description: string;
     priceCents: number;
+    dietType?: "veg" | "egg" | "non-veg";
   }[];
 };
 
@@ -41,6 +42,33 @@ function formatMoney(cents: number) {
   );
 }
 
+function renderDietSymbol(type?: "veg" | "egg" | "non-veg") {
+  const color = type === "veg" || !type ? "#10b981" : type === "egg" ? "#f59e0b" : "#ef4444";
+  const bg = type === "veg" || !type ? "rgba(16, 185, 129, 0.05)" : type === "egg" ? "rgba(245, 158, 11, 0.05)" : "rgba(239, 68, 68, 0.05)";
+  const title = type === "veg" || !type ? "Pure Veg" : type === "egg" ? "Contains Egg (Veg+Egg)" : "Non-Veg";
+
+  return (
+    <span
+      title={title}
+      style={{
+        border: `1.5px solid ${color}`,
+        width: "12px",
+        height: "12px",
+        padding: "1px",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: "2px",
+        background: bg,
+        flexShrink: 0,
+        marginRight: "4px"
+      }}
+    >
+      <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: color }} />
+    </span>
+  );
+}
+
 export function StaffTableServePage() {
   const { tableId } = useParams();
   const navigate = useNavigate();
@@ -51,6 +79,7 @@ export function StaffTableServePage() {
   const [menu, setMenu] = useState<MenuResponse | null>(null);
   const [order, setOrder] = useState<OrderResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
   const [showQr, setShowQr] = useState(false);
 
@@ -157,6 +186,24 @@ export function StaffTableServePage() {
     }
   }
 
+  async function closeOrderDirectly() {
+    if (!tableId || !order) return;
+    if (!window.confirm("Are you sure you want to close and settle this order?")) return;
+    setError(null);
+    setSuccess(null);
+    try {
+      await apiJson(`/api/staff/orders/${order.id}/status`, {
+        method: "PATCH",
+        json: { status: "closed" },
+      });
+      setSuccess("Order settled and table vacated successfully!");
+      await loadDetail();
+      await refreshOrder();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not close order");
+    }
+  }
+
   if (!token) return <Navigate to="/staff/login" replace />;
   if (!tableId) return <div className="card">Missing table</div>;
   if (booting && !detail) return <div className="card muted">Loading…</div>;
@@ -167,6 +214,7 @@ export function StaffTableServePage() {
         <Link to="/staff/tables">← Tables</Link>
       </div>
       {error && <div className="card muted">{error}</div>}
+      {success && <div className="alert alert-success" style={{ marginBottom: 12 }}>{success}</div>}
 
       {detail && (
         <div className="card">
@@ -330,33 +378,48 @@ export function StaffTableServePage() {
 
       {menuReady && menu && (
         <>
-          {menu.categories.map((c) => (
-            <div key={c.id} className="card">
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>{c.name}</div>
-              <div style={{ display: "grid", gap: 10 }}>
-                {(itemsByCategory.get(c.id) ?? []).map((i) => (
-                  <div key={i.id} className="row">
-                    <div>
-                      <div style={{ fontWeight: 600 }}>{i.name}</div>
-                      {i.description && <div className="muted">{i.description}</div>}
-                      <div className="muted">{formatMoney(i.priceCents)}</div>
+          {menu.categories.map((c) => {
+            const categoryItems = itemsByCategory.get(c.id) ?? [];
+            if (categoryItems.length === 0) return null; // Skip unused menu categories!
+            
+            return (
+              <div key={c.id} className="card">
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>{c.name}</div>
+                <div style={{ display: "grid", gap: 10 }}>
+                  {categoryItems.map((i) => (
+                    <div key={i.id} className="row">
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          {renderDietSymbol(i.dietType)}
+                          <div style={{ fontWeight: 600 }}>{i.name}</div>
+                        </div>
+                        {i.description && <div className="muted">{i.description}</div>}
+                        <div className="muted">{formatMoney(i.priceCents)}</div>
+                      </div>
+                      <button
+                        className="primary"
+                        type="button"
+                        onClick={() => addItem(i.id)}
+                        disabled={order?.status !== "draft"}
+                      >
+                        Add
+                      </button>
                     </div>
-                    <button
-                      className="primary"
-                      type="button"
-                      onClick={() => addItem(i.id)}
-                      disabled={order?.status !== "draft"}
-                    >
-                      Add
-                    </button>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           <div className="card">
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>Current ticket</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700 }}>Current Ticket</div>
+              {order && (
+                <span className={`badge ${order.status}`} style={{ textTransform: "uppercase", fontSize: "0.7rem" }}>
+                  {order.status}
+                </span>
+              )}
+            </div>
             {!order || order.lines.length === 0 ? (
               <div className="muted">No items yet.</div>
             ) : (
@@ -374,16 +437,27 @@ export function StaffTableServePage() {
                 ))}
               </div>
             )}
-            <div style={{ marginTop: 12 }} className="row">
-              <button
-                className="primary"
-                type="button"
-                onClick={placeOrder}
-                disabled={!order || order.status !== "draft" || order.lines.length === 0}
-              >
-                Send to kitchen
-              </button>
-              <Link to="/staff/tables">Cancel</Link>
+            <div style={{ marginTop: 16, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} className="row">
+              {order && order.status === "draft" && (
+                <button
+                  className="primary"
+                  type="button"
+                  onClick={placeOrder}
+                  disabled={order.lines.length === 0}
+                >
+                  Send to kitchen
+                </button>
+              )}
+              {order && (order.status === "placed" || order.status === "confirmed") && (
+                <button
+                  className="success"
+                  type="button"
+                  onClick={closeOrderDirectly}
+                >
+                  💸 Settle & Close Ticket
+                </button>
+              )}
+              <Link to="/staff/tables" style={{ marginLeft: 8 }}>Back to Floor</Link>
             </div>
           </div>
         </>

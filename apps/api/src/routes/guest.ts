@@ -12,6 +12,7 @@ import type { GuestTokenPayload } from "../middleware/guestAuth.js";
 import { requireGuest } from "../middleware/guestAuth.js";
 import { Router as createRouter, type Router } from "express";
 import { ensureDraftOrder, getActiveDraftOrder } from "../lib/orders.js";
+import { Review } from "../models/Review.js";
 
 const sessionBody = z.object({ tableSlug: z.string().min(1) });
 
@@ -19,6 +20,19 @@ const itemBody = z.object({
   menuItemId: z.string().min(1),
   quantity: z.coerce.number().int().min(1).max(99),
   note: z.string().max(500).optional(),
+});
+
+const reviewBody = z.object({
+  reviewerName: z.string().max(100).optional(),
+  overallRating: z.coerce.number().int().min(1).max(5),
+  comment: z.string().max(2000).optional(),
+  feedbackType: z.enum(["comment", "suggestion", "complaint"]).optional(),
+  menuItemReviews: z.array(
+    z.object({
+      menuItemId: z.string().min(1),
+      rating: z.coerce.number().int().min(1).max(5),
+    })
+  ).optional(),
 });
 
 function signGuestCookie(res: Response, payload: GuestTokenPayload) {
@@ -39,6 +53,49 @@ function isMongoDuplicate(e: unknown) {
     "code" in e &&
     (e as { code: number }).code === 11000
   );
+}
+
+async function consolidateSessionOrders(diningSessionId: any) {
+  const orders = await OrderModel.find({ diningSessionId });
+  if (orders.length <= 1) {
+    for (const o of orders) {
+      if (o.status !== "closed") {
+        o.status = "closed";
+        await o.save();
+      }
+    }
+    return;
+  }
+
+  const linesMap: Record<string, { menuItemId: any; name: string; unitPriceCents: number; quantity: number; note: string }> = {};
+
+  for (const o of orders) {
+    for (const l of o.lines) {
+      const key = `${l.menuItemId}_${l.unitPriceCents}`;
+      if (linesMap[key]) {
+        linesMap[key].quantity += l.quantity;
+        if (l.note) {
+          linesMap[key].note = linesMap[key].note ? `${linesMap[key].note}, ${l.note}` : l.note;
+        }
+      } else {
+        linesMap[key] = {
+          menuItemId: l.menuItemId,
+          name: l.name,
+          unitPriceCents: l.unitPriceCents,
+          quantity: l.quantity,
+          note: l.note || "",
+        };
+      }
+    }
+  }
+
+  const primaryOrder = orders[0];
+  primaryOrder.lines = Object.values(linesMap);
+  primaryOrder.status = "closed";
+  await primaryOrder.save();
+
+  const otherOrderIds = orders.slice(1).map((o) => o._id);
+  await OrderModel.deleteMany({ _id: { $in: otherOrderIds } });
 }
 
 export function guestRouter(): Router {
@@ -121,6 +178,7 @@ export function guestRouter(): Router {
         name: i.name,
         description: i.description,
         priceCents: i.priceCents,
+        dietType: (i as any).dietType || "veg",
       })),
     });
   });
@@ -206,6 +264,143 @@ export function guestRouter(): Router {
     });
 
     res.json({ ok: true, status: "placed" });
+  });
+
+  r.get("/orders/all", requireGuest, async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.guest!.diningSessionId;
+      const list = await OrderModel.find({ diningSessionId: new mongoose.Types.ObjectId(sessionId) })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      res.json(
+        list.map((order) => ({
+          id: String(order._id),
+          status: order.status,
+          createdAt: order.createdAt,
+          lines: order.lines.map((l: any) => ({
+            id: String(l._id),
+            menuItemId: String(l.menuItemId),
+            name: l.name,
+            unitPriceCents: l.unitPriceCents,
+            quantity: l.quantity,
+            note: l.note,
+          })),
+        }))
+      );
+    } catch (e) {
+      res.status(500).json({ error: e instanceof Error ? e.message : "Failed to load orders" });
+    }
+  });
+
+  r.post("/reviews", requireGuest, async (req: Request, res: Response) => {
+    const parsed = reviewBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten() });
+      return;
+    }
+
+    try {
+      const review = await Review.create({
+        reviewerName: parsed.data.reviewerName || "Anonymous",
+        overallRating: parsed.data.overallRating,
+        comment: parsed.data.comment || "",
+        feedbackType: parsed.data.feedbackType || "comment",
+        menuItemReviews: parsed.data.menuItemReviews || [],
+        status: "pending", // require admin/staff moderation before publishing
+      });
+
+      res.status(201).json({ ok: true, reviewId: String(review._id) });
+    } catch (e) {
+      res.status(500).json({ error: e instanceof Error ? e.message : "Failed to save review" });
+    }
+  });
+
+  r.get("/reviews", requireGuest, async (_req: Request, res: Response) => {
+    try {
+      const reviews = await Review.find({ status: "approved" })
+        .sort({ createdAt: -1 })
+        .populate("menuItemReviews.menuItemId", "name")
+        .lean();
+
+      res.json(
+        reviews.map((rev) => ({
+          id: String(rev._id),
+          reviewerName: rev.reviewerName,
+          overallRating: rev.overallRating,
+          comment: rev.comment,
+          feedbackType: rev.feedbackType,
+          createdAt: rev.createdAt,
+          menuItemReviews: (rev.menuItemReviews || []).map((ir: any) => ({
+            id: String(ir._id),
+            menuItemId: ir.menuItemId ? String(ir.menuItemId._id || ir.menuItemId) : "",
+            name: ir.menuItemId ? ir.menuItemId.name || "Unknown Item" : "Unknown Item",
+            rating: ir.rating,
+          })),
+        }))
+      );
+    } catch (e) {
+      res.status(500).json({ error: e instanceof Error ? e.message : "Failed to load reviews" });
+    }
+  });
+
+  r.get("/reviews/stats", requireGuest, async (_req: Request, res: Response) => {
+    try {
+      const reviews = await Review.find({ status: "approved" }).lean();
+      
+      let overallAvg = 0;
+      if (reviews.length > 0) {
+        const sum = reviews.reduce((acc, r) => acc + r.overallRating, 0);
+        overallAvg = sum / reviews.length;
+      }
+
+      const itemRatings: Record<string, { sum: number; count: number; average: number }> = {};
+      for (const r of reviews) {
+        if (r.menuItemReviews) {
+          for (const ir of r.menuItemReviews) {
+            const idStr = String(ir.menuItemId);
+            if (!itemRatings[idStr]) {
+              itemRatings[idStr] = { sum: 0, count: 0, average: 0 };
+            }
+            itemRatings[idStr].sum += ir.rating;
+            itemRatings[idStr].count += 1;
+          }
+        }
+      }
+
+      for (const itemId of Object.keys(itemRatings)) {
+        itemRatings[itemId].average = Number((itemRatings[itemId].sum / itemRatings[itemId].count).toFixed(1));
+      }
+
+      res.json({
+        overallAverage: Number(overallAvg.toFixed(1)),
+        totalReviewsCount: reviews.length,
+        itemAverages: itemRatings,
+      });
+    } catch (e) {
+      res.status(500).json({ error: e instanceof Error ? e.message : "Failed to load statistics" });
+    }
+  });
+
+  r.post("/settle", requireGuest, async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.guest!.diningSessionId;
+      
+      // 1. Consolidate all orders for this session into a single closed order
+      await consolidateSessionOrders(sessionId);
+
+      // 2. Close the dining session
+      await DiningSession.findByIdAndUpdate(sessionId, {
+        $set: { status: "closed", partySize: 0 }
+      });
+
+      // 3. Clear guest token cookie to reset guest flow
+      res.clearCookie("guest_token", { path: "/" });
+
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: e instanceof Error ? e.message : "Failed to settle bill" });
+    }
   });
 
   return r;
