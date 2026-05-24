@@ -6,7 +6,6 @@ const diningSessionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Table",
       required: true,
-      index: true,
     },
     status: {
       type: String,
