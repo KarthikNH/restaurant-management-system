@@ -72,6 +72,7 @@ async function loadMenuJson() {
       name: i.name,
       description: i.description,
       priceCents: i.priceCents,
+      dietType: (i as any).dietType || "veg",
     })),
   };
 }

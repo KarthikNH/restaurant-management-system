@@ -227,16 +227,60 @@ export function guestRouter(): Router {
       return;
     }
 
-    order.lines.push({
-      menuItemId: item._id,
-      name: item.name,
-      unitPriceCents: item.priceCents,
-      quantity: parsed.data.quantity,
-      note: parsed.data.note ?? "",
-    });
+    // Merge with existing line if same item is already in cart
+    const existing = order.lines.find(
+      (l) => String(l.menuItemId) === String(item._id)
+    );
+    if (existing) {
+      existing.quantity += parsed.data.quantity;
+    } else {
+      order.lines.push({
+        menuItemId: item._id,
+        name: item.name,
+        unitPriceCents: item.priceCents,
+        quantity: parsed.data.quantity,
+        note: parsed.data.note ?? "",
+      });
+    }
     await order.save();
 
     res.status(201).json({ ok: true });
+  });
+
+  // Remove one unit of an item from the draft cart
+  r.post("/order/items/remove", requireGuest, async (req: Request, res: Response) => {
+    const parsed = z.object({ menuItemId: z.string().min(1) }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.flatten() });
+      return;
+    }
+    const sessionId = req.guest!.diningSessionId;
+    const order = await getActiveDraftOrder(sessionId);
+    if (!order) {
+      res.status(404).json({ error: "No order for session" });
+      return;
+    }
+    if (order.status !== "draft") {
+      res.status(409).json({ error: "Order is no longer editable" });
+      return;
+    }
+
+    const lineIndex = order.lines.findIndex(
+      (l) => String(l.menuItemId) === parsed.data.menuItemId
+    );
+    if (lineIndex === -1) {
+      res.status(404).json({ error: "Item not found in cart" });
+      return;
+    }
+
+    if (order.lines[lineIndex].quantity <= 1) {
+      order.lines.splice(lineIndex, 1);
+    } else {
+      order.lines[lineIndex].quantity -= 1;
+    }
+    await order.save();
+
+    res.json({ ok: true });
   });
 
   r.post("/order/place", requireGuest, async (req: Request, res: Response) => {

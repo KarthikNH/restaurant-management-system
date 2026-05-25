@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiJson } from "../api";
+import logo from "../logo.png";
 
 type MenuResponse = {
   categories: { id: string; name: string; sortOrder: number }[];
@@ -19,6 +20,7 @@ type OrderResponse = {
   status: string;
   lines: {
     id: string;
+    menuItemId: string;
     name: string;
     unitPriceCents: number;
     quantity: number;
@@ -135,9 +137,24 @@ export function GuestTablePage() {
   const [submittingReview, setSubmittingReview] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
-  const [allOrders, setAllOrders] = useState<OrderResponse[]>([]);
+  // Restore allOrders from sessionStorage on mount so back-navigation doesn't clear placed orders
+  const [allOrders, setAllOrdersRaw] = useState<OrderResponse[]>(() => {
+    try {
+      const stored = sessionStorage.getItem(`allOrders_${tableSlug}`);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
   const [isSettling, setIsSettling] = useState(false);
   const [checkoutComplete, setCheckoutComplete] = useState(false);
+
+  function setAllOrders(orders: OrderResponse[]) {
+    setAllOrdersRaw(orders);
+    try {
+      sessionStorage.setItem(`allOrders_${tableSlug}`, JSON.stringify(orders));
+    } catch { /* ignore */ }
+  }
 
   async function handleSettleUpBill() {
     if (!window.confirm("Are you sure you want to settle up your bill and complete checkout?")) return;
@@ -145,6 +162,8 @@ export function GuestTablePage() {
     setIsSettling(true);
     try {
       await apiJson("/api/guest/settle", { method: "POST" });
+      // Clear persisted orders on settlement
+      try { sessionStorage.removeItem(`allOrders_${tableSlug}`); } catch { /* ignore */ }
       setCheckoutComplete(true);
       setTimeout(() => {
         window.location.reload();
@@ -340,6 +359,13 @@ export function GuestTablePage() {
     return map;
   }, [menu]);
 
+  // Helper: get quantity of a menu item currently in the draft cart
+  function getCartQty(menuItemId: string): number {
+    if (!order || order.status !== "draft") return 0;
+    const line = order.lines.find((l) => l.menuItemId === menuItemId);
+    return line?.quantity ?? 0;
+  }
+
   async function addItem(menuItemId: string) {
     setError(null);
     try {
@@ -350,6 +376,19 @@ export function GuestTablePage() {
       await refreshOrder();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not add item");
+    }
+  }
+
+  async function removeItem(menuItemId: string) {
+    setError(null);
+    try {
+      await apiJson("/api/guest/order/items/remove", {
+        method: "POST",
+        json: { menuItemId, quantity: 1 },
+      });
+      await refreshOrder();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not update item");
     }
   }
 
@@ -434,10 +473,22 @@ export function GuestTablePage() {
   return (
     <div>
       <div className="card">
-        <div className="row" style={{ justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: "1.2rem", fontWeight: 700, letterSpacing: "-0.02em" }}>Iris Cafe</div>
-            <div className="muted">Table Slug: {tableSlug}</div>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <img
+              src={logo}
+              alt="Iris Cafe"
+              style={{
+                height: "44px",
+                objectFit: "contain",
+                borderRadius: "8px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+              }}
+            />
+            <div>
+              <div style={{ fontSize: "1.1rem", fontWeight: 700, letterSpacing: "-0.02em" }}>Iris Cafe</div>
+              <div className="muted" style={{ fontSize: "0.75rem" }}>Table: {tableSlug}</div>
+            </div>
           </div>
         </div>
         {error && <div className="alert alert-error" style={{ marginTop: 12 }}>{error}</div>}
@@ -478,6 +529,8 @@ export function GuestTablePage() {
                 <div style={{ display: "grid", gap: 14 }}>
                   {categoryItems.map((i) => {
                     const ratingInfo = stats?.itemAverages?.[i.id];
+                    const cartQty = getCartQty(i.id);
+                    const canEdit = order?.status === "draft";
                     return (
                       <div key={i.id} className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", paddingBottom: "10px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
                         <div style={{ flex: 1, paddingRight: "10px" }}>
@@ -495,15 +548,76 @@ export function GuestTablePage() {
                           {i.description && <div className="muted" style={{ fontSize: "0.8rem", marginTop: "2px" }}>{i.description}</div>}
                           <div style={{ fontWeight: 700, color: "var(--amber)", fontSize: "0.85rem", marginTop: "4px" }}>{formatMoney(i.priceCents)}</div>
                         </div>
-                        <button
-                          className="primary sm"
-                          type="button"
-                          onClick={() => addItem(i.id)}
-                          disabled={order?.status !== "draft"}
-                          style={{ marginTop: "4px" }}
-                        >
-                          Add
-                        </button>
+
+                        {/* Swiggy-style quantity stepper */}
+                        {cartQty === 0 || !canEdit ? (
+                          <button
+                            className="primary sm"
+                            type="button"
+                            onClick={() => addItem(i.id)}
+                            disabled={!canEdit}
+                            style={{ marginTop: "4px", minWidth: "60px" }}
+                          >
+                            Add
+                          </button>
+                        ) : (
+                          <div style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0",
+                            marginTop: "4px",
+                            border: "1.5px solid var(--amber)",
+                            borderRadius: "8px",
+                            overflow: "hidden",
+                            background: "rgba(245,158,11,0.08)",
+                            minWidth: "88px",
+                          }}>
+                            <button
+                              type="button"
+                              onClick={() => removeItem(i.id)}
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                color: "var(--amber)",
+                                fontWeight: 700,
+                                fontSize: "1.1rem",
+                                width: "28px",
+                                height: "30px",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                lineHeight: 1,
+                              }}
+                            >−</button>
+                            <span style={{
+                              flex: 1,
+                              textAlign: "center",
+                              fontWeight: 700,
+                              fontSize: "0.9rem",
+                              color: "var(--amber)",
+                              userSelect: "none",
+                            }}>{cartQty}</span>
+                            <button
+                              type="button"
+                              onClick={() => addItem(i.id)}
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                color: "var(--amber)",
+                                fontWeight: 700,
+                                fontSize: "1.1rem",
+                                width: "28px",
+                                height: "30px",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                lineHeight: 1,
+                              }}
+                            >+</button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

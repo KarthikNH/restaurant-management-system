@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { apiJson } from "../api";
+import logo from "../logo.png";
 
 type Table = {
   id: string;
@@ -262,21 +263,18 @@ export function StaffTablesPage() {
             </button>
 
             <div style={{ marginBottom: "15px" }}>
-              <div style={{
-                background: "linear-gradient(135deg, var(--amber), #ef4444)",
-                width: "48px",
-                height: "48px",
-                borderRadius: "12px",
-                margin: "0 auto 10px",
-                display: "grid",
-                placeItems: "center",
-                fontSize: "1.4rem",
-                fontWeight: 800,
-                color: "#fff",
-                boxShadow: "0 0 15px var(--amber-glow)"
-              }}>
-                I
-              </div>
+              <img
+                src={logo}
+                alt="Iris Cafe"
+                style={{
+                  height: "64px",
+                  objectFit: "contain",
+                  borderRadius: "12px",
+                  display: "block",
+                  margin: "0 auto 10px",
+                  boxShadow: "0 0 20px rgba(245,158,11,0.25)",
+                }}
+              />
               <h3 style={{ fontSize: "1.4rem", fontWeight: 800, color: "var(--text)" }}>Iris Cafe</h3>
               <p className="muted" style={{ fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.1em" }}>
                 Tabletop Service Card

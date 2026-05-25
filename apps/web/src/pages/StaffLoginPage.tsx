@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiJson } from "../api";
+import logo from "../logo.png";
 
 export function StaffLoginPage() {
   const nav = useNavigate();
@@ -31,7 +32,18 @@ export function StaffLoginPage() {
   return (
     <div className="login-wrap">
       <div className="login-card">
-        <div className="login-icon">🍽️</div>
+        <div className="login-icon">
+          <img
+            src={logo}
+            alt="Iris Cafe"
+            style={{
+              height: "72px",
+              objectFit: "contain",
+              borderRadius: "12px",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+            }}
+          />
+        </div>
         <h1 className="login-title">Welcome back</h1>
         <p className="login-sub">Sign in to the staff dashboard</p>
 
